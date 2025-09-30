@@ -53,13 +53,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Search for user by email - only return if found
-    // This prevents user enumeration by only returning exact matches
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('id, user_id, name')
-      .eq('user_id', email) // This won't work directly, we need to join with auth.users
-      .limit(1);
+    // Use the secure database function to search for user
+    // This prevents user enumeration and leverages database-level security
+    const { data, error } = await supabase.rpc('search_user_by_email', {
+      p_email: email.trim().toLowerCase(),
+    });
 
     if (error) {
       console.error('Search error:', error);
@@ -69,30 +67,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // For security, we'll use a different approach:
-    // Query all profiles where the authenticated user can see them (via RLS)
-    // But we need to get user by email through auth metadata
-    const { data: allProfiles, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, user_id, name')
-      .limit(100);
-
-    if (profileError) {
-      console.error('Profile fetch error:', profileError);
-      return new Response(JSON.stringify({ error: 'Search failed' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (data && data.length > 0) {
+      return new Response(
+        JSON.stringify({
+          user: {
+            id: data[0].id,
+            user_id: data[0].user_id,
+            name: data[0].name,
+          },
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    // Since we can't directly query auth.users email from client,
-    // we'll implement a server-side search that's more secure
-    // For now, return empty if no match to prevent enumeration
+    // Return null if no user found (prevents enumeration)
     return new Response(
-      JSON.stringify({
-        user: null,
-        message: 'User search by email requires server-side implementation',
-      }),
+      JSON.stringify({ user: null }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -77,6 +77,33 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          action_type: string
+          attempt_count: number | null
+          created_at: string | null
+          id: string
+          last_attempt: string | null
+          user_identifier: string
+        }
+        Insert: {
+          action_type: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          last_attempt?: string | null
+          user_identifier: string
+        }
+        Update: {
+          action_type?: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          last_attempt?: string | null
+          user_identifier?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -139,6 +166,36 @@ export type Database = {
       check_fraud_patterns: {
         Args: { user_id_param: string }
         Returns: undefined
+      }
+      check_rate_limit: {
+        Args: {
+          p_action: string
+          p_identifier: string
+          p_max_attempts?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
+      execute_transfer: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_from_user_id: string
+          p_to_user_id: string
+        }
+        Returns: Json
+      }
+      insert_fraud_log: {
+        Args: { p_description: string; p_severity?: string; p_user_id: string }
+        Returns: undefined
+      }
+      search_user_by_email: {
+        Args: { p_email: string }
+        Returns: {
+          id: string
+          name: string
+          user_id: string
+        }[]
       }
       update_credit_score: {
         Args: { user_id_param: string }

@@ -20,6 +20,12 @@ interface SearchedUser {
   name: string;
 }
 
+interface TransferResult {
+  success: boolean;
+  error?: string;
+  transaction_id?: string;
+}
+
 export default function Transfer() {
   const [searchEmail, setSearchEmail] = useState('');
   const [amount, setAmount] = useState('');
@@ -50,18 +56,22 @@ export default function Transfer() {
 
     setLoading(true);
     try {
-      // Use secure server-side search via edge function
-      const { data, error } = await supabase.functions.invoke('search-users', {
-        body: { email: searchEmail },
+      // Use secure database function for user search
+      const { data, error } = await supabase.rpc('search_user_by_email', {
+        p_email: searchEmail.trim().toLowerCase(),
       });
 
       if (error) throw error;
 
-      if (data?.user) {
-        setSearchedUser(data.user);
+      if (data && data.length > 0) {
+        setSearchedUser({
+          id: data[0].id,
+          user_id: data[0].user_id,
+          name: data[0].name,
+        });
         toast({
           title: 'User Found',
-          description: `Found ${data.user.name}`,
+          description: `Found ${data[0].name}`,
         });
       } else {
         setSearchedUser(null);
@@ -107,80 +117,34 @@ export default function Transfer() {
         return;
       }
 
-      // Prevent self-transfer
-      if (searchedUser.user_id === user.id) {
-        toast({
-          title: 'Error',
-          description: 'You cannot transfer money to yourself',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Get sender's balance
-      const { data: senderProfile } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!senderProfile) throw new Error('Profile not found');
-
-      if (Number(senderProfile.balance) < transferAmount) {
-        toast({
-          title: 'Error',
-          description: 'Insufficient balance',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Fraud detection is now handled by database triggers automatically
-
-      // Update sender's balance
-      await supabase
-        .from('profiles')
-        .update({ balance: Number(senderProfile.balance) - transferAmount })
-        .eq('user_id', user.id);
-
-      // Get receiver's balance
-      const { data: receiverProfile } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('user_id', searchedUser.user_id)
-        .single();
-
-      if (!receiverProfile) throw new Error('Receiver profile not found');
-
-      // Update receiver's balance
-      await supabase
-        .from('profiles')
-        .update({ balance: Number(receiverProfile.balance) + transferAmount })
-        .eq('user_id', searchedUser.user_id);
-
-      // Log transaction
-      await supabase.from('transactions').insert({
-        from_user_id: user.id,
-        to_user_id: searchedUser.user_id,
-        amount: transferAmount,
-        type: 'transfer',
-        status: 'completed',
-        description: `Transfer to ${searchedUser.name}`,
+      // Use the atomic transfer RPC function with proper transaction handling
+      const { data, error } = await supabase.rpc('execute_transfer', {
+        p_from_user_id: user.id,
+        p_to_user_id: searchedUser.user_id,
+        p_amount: transferAmount,
+        p_description: `Transfer to ${searchedUser.name}`,
       });
 
-      // Update credit scores for both users
-      await supabase.rpc('update_credit_score', { user_id_param: user.id });
-      await supabase.rpc('update_credit_score', { user_id_param: searchedUser.user_id });
+      if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: `Transferred $${transferAmount.toFixed(2)} to ${searchedUser.name}`,
-      });
+      const result = data as unknown as TransferResult;
 
-      setAmount('');
-      setSearchEmail('');
-      setSearchedUser(null);
+      if (result && result.success) {
+        toast({
+          title: 'Success',
+          description: `Transferred $${transferAmount.toFixed(2)} to ${searchedUser.name}`,
+        });
+
+        setAmount('');
+        setSearchEmail('');
+        setSearchedUser(null);
+      } else {
+        toast({
+          title: 'Error',
+          description: result?.error || 'Transfer failed',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
