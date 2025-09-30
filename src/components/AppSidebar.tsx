@@ -1,5 +1,5 @@
-import { Home, Wallet, Send, ShieldAlert, Settings, LogOut } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Home, Wallet, Send, ShieldAlert, Settings } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
@@ -10,8 +10,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
@@ -22,15 +20,6 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({ title: 'Logged out successfully' });
-    navigate('/auth');
-  };
-
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
@@ -54,12 +43,6 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout}>
-                  <LogOut className="h-4 w-4" />
-                  <span>Logout</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

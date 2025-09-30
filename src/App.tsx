@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
+import { UserNav } from "./components/UserNav";
 
 const queryClient = new QueryClient();
 
@@ -24,11 +25,14 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => (
       <AppSidebar />
       <div className="flex-1">
         <header className="sticky top-0 z-40 border-b bg-background">
-          <div className="flex h-16 items-center px-4">
-            <SidebarTrigger />
-            <div className="ml-4 flex items-center gap-2">
-              <span className="text-xl font-bold text-primary">SafeFlow</span>
+          <div className="flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold text-primary">SafeFlow</span>
+              </div>
             </div>
+            <UserNav />
           </div>
         </header>
         <main className="p-6">{children}</main>
