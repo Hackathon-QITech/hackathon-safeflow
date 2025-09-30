@@ -1,33 +1,132 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Shield } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import * as OTPAuth from 'otpauth';
+import QRCode from 'qrcode';
 
 const TwoFA = () => {
   const [code, setCode] = useState('');
   const [secret, setSecret] = useState('');
-  const { setup2FA, verify2FA } = useAuth();
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const generatedSecret = setup2FA();
-    setSecret(generatedSecret);
-  }, []);
+    const setupTwoFA = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
 
-  const handleVerify = (e: React.FormEvent) => {
+      // Check if 2FA is already set up
+      const { data: existingSecret } = await supabase
+        .from('two_fa_secrets')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      let totpSecret = existingSecret?.secret;
+
+      if (!totpSecret) {
+        // Generate new secret
+        const totp = new OTPAuth.TOTP({
+          issuer: 'SafeFlow',
+          label: user.email,
+          algorithm: 'SHA1',
+          digits: 6,
+          period: 30,
+        });
+
+        totpSecret = totp.secret.base32;
+
+        // Save to database
+        await supabase.from('two_fa_secrets').insert({
+          user_id: user.id,
+          secret: totpSecret,
+          enabled: false,
+        });
+
+        setSecret(totpSecret);
+
+        // Generate QR code
+        const otpauthUrl = totp.toString();
+        const qrCode = await QRCode.toDataURL(otpauthUrl);
+        setQrCodeUrl(qrCode);
+      } else {
+        setSecret(totpSecret);
+        const totp = new OTPAuth.TOTP({
+          issuer: 'SafeFlow',
+          label: user.email,
+          algorithm: 'SHA1',
+          digits: 6,
+          period: 30,
+          secret: totpSecret,
+        });
+        const otpauthUrl = totp.toString();
+        const qrCode = await QRCode.toDataURL(otpauthUrl);
+        setQrCodeUrl(qrCode);
+      }
+    };
+
+    setupTwoFA();
+  }, [navigate]);
+
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (verify2FA(code)) {
-      toast({ title: 'Success', description: '2FA enabled successfully!' });
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      // Verify the code
+      const totp = new OTPAuth.TOTP({
+        issuer: 'SafeFlow',
+        label: user.email,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret,
+      });
+
+      const delta = totp.validate({ token: code, window: 1 });
+
+      if (delta === null) {
+        toast({
+          title: 'Error',
+          description: 'Invalid code. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Enable 2FA
+      await supabase
+        .from('two_fa_secrets')
+        .update({ enabled: true })
+        .eq('user_id', user.id);
+
+      toast({
+        title: 'Success',
+        description: '2FA enabled successfully!',
+      });
+
       navigate('/dashboard');
-    } else {
-      toast({ title: 'Error', description: 'Invalid code. Use 123456 for demo.', variant: 'destructive' });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,25 +134,22 @@ const TwoFA = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary text-primary-foreground p-4 rounded-full">
-              <Shield className="w-8 h-8" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl text-secondary">Setup 2FA</CardTitle>
-          <CardDescription>
-            Secure your account with two-factor authentication
-          </CardDescription>
+          <CardTitle className="text-2xl text-secondary">Two-Factor Authentication</CardTitle>
+          <CardDescription>Scan the QR code with your authenticator app</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            <div className="bg-muted p-4 rounded-lg text-center">
-              <p className="text-sm text-muted-foreground mb-2">Your 2FA Secret:</p>
-              <p className="font-mono text-lg font-bold break-all">{secret}</p>
-              <p className="text-xs text-muted-foreground mt-2">
-                (In production, scan QR code with authenticator app)
-              </p>
-            </div>
+            {qrCodeUrl && (
+              <div className="flex flex-col items-center space-y-4">
+                <img src={qrCodeUrl} alt="QR Code" className="border rounded-lg p-2" />
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">Or enter this code manually:</p>
+                  <code className="bg-muted px-3 py-1 rounded text-sm font-mono break-all">
+                    {secret}
+                  </code>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleVerify} className="space-y-4">
               <div className="space-y-2">
@@ -63,16 +159,14 @@ const TwoFA = () => {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   maxLength={6}
-                  placeholder="123456"
                   required
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-widest"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Demo code: 123456
-                </p>
               </div>
 
-              <Button type="submit" className="w-full">
-                Verify and Enable 2FA
+              <Button type="submit" className="w-full" disabled={loading || code.length !== 6}>
+                {loading ? 'Verifying...' : 'Verify & Enable'}
               </Button>
             </form>
 

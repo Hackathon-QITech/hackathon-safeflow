@@ -14,13 +14,132 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      fraud_logs: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          severity: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          severity?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          severity?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          balance: number | null
+          birth_date: string | null
+          cpf: string | null
+          created_at: string | null
+          credit_score: number | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          balance?: number | null
+          birth_date?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          credit_score?: number | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          balance?: number | null
+          birth_date?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          credit_score?: number | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          from_user_id: string | null
+          id: string
+          status: string
+          to_user_id: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          from_user_id?: string | null
+          id?: string
+          status?: string
+          to_user_id: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          from_user_id?: string | null
+          id?: string
+          status?: string
+          to_user_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      two_fa_secrets: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          secret: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          secret: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          secret?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_credit_score: {
+        Args: { user_id_param: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

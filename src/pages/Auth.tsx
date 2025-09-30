@@ -1,57 +1,148 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Wallet } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { PasswordStrength } from '@/components/PasswordStrength';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [cpf, setCpf] = useState('');
-  const { login, register, googleLogin } = useAuth();
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard');
+      }
+    });
+  }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
 
-    if (isLogin) {
-      const result = await login(email, password);
-      if (result.success) {
-        if (result.needsTwoFA) {
+    try {
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+
+        // Check if 2FA is enabled
+        const { data: twoFAData } = await supabase
+          .from('two_fa_secrets')
+          .select('enabled')
+          .eq('user_id', data.user.id)
+          .single();
+
+        if (twoFAData?.enabled) {
           navigate('/auth/2fa');
         } else {
           navigate('/dashboard');
         }
       } else {
-        toast({ title: 'Error', description: result.error, variant: 'destructive' });
-      }
-    } else {
-      const result = await register(email, password, name, birthDate, cpf);
-      if (result.success) {
-        toast({ title: 'Success', description: 'Account created! Please login.' });
+        // Validation
+        if (password !== confirmPassword) {
+          toast({
+            title: 'Error',
+            description: 'Passwords do not match',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (password.length < 8) {
+          toast({
+            title: 'Error',
+            description: 'Password must be at least 8 characters',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (!cpf || cpf.length !== 11) {
+          toast({
+            title: 'Error',
+            description: 'CPF must be 11 digits',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const { error: signUpError, data } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name,
+              birth_date: birthDate,
+              cpf,
+            },
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+          },
+        });
+
+        if (signUpError) throw signUpError;
+
+        // Update profile with additional info
+        if (data.user) {
+          await supabase
+            .from('profiles')
+            .update({ birth_date: birthDate, cpf })
+            .eq('user_id', data.user.id);
+        }
+
+        toast({
+          title: 'Success',
+          description: 'Account created! You can now login.',
+        });
         setIsLogin(true);
-      } else {
-        toast({ title: 'Error', description: result.error, variant: 'destructive' });
       }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    const result = await googleLogin('user@gmail.com', 'Google User');
-    if (result.success) {
-      if (result.needsProfile) {
-        navigate('/auth/complete-profile');
-      } else {
-        navigate('/dashboard');
-      }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,7 +195,22 @@ const Auth = () => {
                 required
                 minLength={8}
               />
+              {!isLogin && <PasswordStrength password={password} />}
             </div>
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+            )}
 
             {!isLogin && (
               <>
@@ -132,14 +238,14 @@ const Auth = () => {
               </>
             )}
 
-            <Button type="submit" className="w-full">
-              {isLogin ? 'Login' : 'Register'}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Loading...' : isLogin ? 'Login' : 'Register'}
             </Button>
           </form>
 
           <div className="mt-4">
-            <Button variant="outline" className="w-full" onClick={handleGoogleLogin}>
-              Continue with Google
+            <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={loading}>
+              {loading ? 'Loading...' : 'Continue with Google'}
             </Button>
           </div>
 
