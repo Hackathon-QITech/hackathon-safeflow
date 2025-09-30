@@ -136,6 +136,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_fraud_patterns: {
+        Args: { user_id_param: string }
+        Returns: undefined
+      }
       update_credit_score: {
         Args: { user_id_param: string }
         Returns: undefined

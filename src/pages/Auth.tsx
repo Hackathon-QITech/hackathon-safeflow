@@ -66,10 +66,25 @@ const Auth = () => {
           return;
         }
 
+        // Enforce strong password requirements
         if (password.length < 8) {
           toast({
-            title: 'Error',
+            title: 'Weak Password',
             description: 'Password must be at least 8 characters',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Check password strength
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumber = /\d/.test(password);
+        
+        if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+          toast({
+            title: 'Weak Password',
+            description: 'Password must contain uppercase, lowercase, and numbers',
             variant: 'destructive',
           });
           return;

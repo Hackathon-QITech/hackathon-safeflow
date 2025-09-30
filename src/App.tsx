@@ -7,7 +7,6 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import Auth from "./pages/Auth";
 import TwoFA from "./pages/TwoFA";
-import CompleteProfile from "./pages/CompleteProfile";
 import DashboardHome from "./pages/DashboardHome";
 import Deposit from "./pages/Deposit";
 import Transfer from "./pages/Transfer";
@@ -48,7 +47,6 @@ const App = () => (
           <Route path="/" element={<Navigate to="/auth" replace />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/2fa" element={<TwoFA />} />
-          <Route path="/auth/complete-profile" element={<CompleteProfile />} />
           <Route path="/dashboard" element={<DashboardLayout><DashboardHome /></DashboardLayout>} />
           <Route path="/dashboard/deposit" element={<DashboardLayout><Deposit /></DashboardLayout>} />
           <Route path="/dashboard/transfer" element={<DashboardLayout><Transfer /></DashboardLayout>} />

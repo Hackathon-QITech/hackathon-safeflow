@@ -6,7 +6,13 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { Send, Search } from 'lucide-react';
+import { Send, Search, AlertTriangle } from 'lucide-react';
+import { z } from 'zod';
+
+const transferSchema = z.object({
+  amount: z.number().positive('Amount must be positive').max(100000, 'Amount exceeds maximum limit'),
+  receiverId: z.string().uuid('Invalid receiver ID'),
+});
 
 interface SearchedUser {
   id: string;
@@ -31,31 +37,47 @@ export default function Transfer() {
   const handleSearch = async () => {
     if (!searchEmail) return;
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(searchEmail)) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // Search by querying profiles joined with auth data
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .limit(100);
+      // Use secure server-side search via edge function
+      const { data, error } = await supabase.functions.invoke('search-users', {
+        body: { email: searchEmail },
+      });
 
       if (error) throw error;
 
-      // Note: In production, you'd want server-side search with proper email matching
-      // For now, we'll search through profile names or use a different approach
-      toast({
-        title: 'Info',
-        description: 'Please enter the exact user ID or email for P2P transfers',
-        variant: 'default',
-      });
-      
-      setSearchedUser(null);
+      if (data?.user) {
+        setSearchedUser(data.user);
+        toast({
+          title: 'User Found',
+          description: `Found ${data.user.name}`,
+        });
+      } else {
+        setSearchedUser(null);
+        toast({
+          title: 'Not Found',
+          description: 'No user found with this email address',
+          variant: 'default',
+        });
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
         description: error.message,
         variant: 'destructive',
       });
+      setSearchedUser(null);
     } finally {
       setLoading(false);
     }
@@ -68,12 +90,31 @@ export default function Transfer() {
     setLoading(true);
     try {
       const transferAmount = parseFloat(amount);
-      if (isNaN(transferAmount) || transferAmount <= 0) {
+      
+      // Validate transfer data with zod
+      const validation = transferSchema.safeParse({
+        amount: transferAmount,
+        receiverId: searchedUser.user_id,
+      });
+
+      if (!validation.success) {
         toast({
-          title: 'Error',
-          description: 'Please enter a valid amount',
+          title: 'Validation Error',
+          description: validation.error.errors[0].message,
           variant: 'destructive',
         });
+        setLoading(false);
+        return;
+      }
+
+      // Prevent self-transfer
+      if (searchedUser.user_id === user.id) {
+        toast({
+          title: 'Error',
+          description: 'You cannot transfer money to yourself',
+          variant: 'destructive',
+        });
+        setLoading(false);
         return;
       }
 
@@ -95,14 +136,7 @@ export default function Transfer() {
         return;
       }
 
-      // Check for suspicious activity (high transfer amount)
-      if (transferAmount > 10000) {
-        await supabase.from('fraud_logs').insert({
-          user_id: user.id,
-          description: `High transfer amount: $${transferAmount}`,
-          severity: 'high',
-        });
-      }
+      // Fraud detection is now handled by database triggers automatically
 
       // Update sender's balance
       await supabase

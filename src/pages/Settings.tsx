@@ -42,6 +42,29 @@ export default function Settings() {
       return;
     }
 
+    // Enforce strong password requirements
+    if (newPassword.length < 8) {
+      toast({
+        title: 'Weak Password',
+        description: 'Password must be at least 8 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasLowerCase = /[a-z]/.test(newPassword);
+    const hasNumber = /\d/.test(newPassword);
+    
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      toast({
+        title: 'Weak Password',
+        description: 'Password must contain uppercase, lowercase, and numbers',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
@@ -100,6 +123,29 @@ export default function Settings() {
     if (!user || !e.target.files || e.target.files.length === 0) return;
 
     const file = e.target.files[0];
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please upload a JPEG, PNG, or WebP image',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (2MB max)
+    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+    if (file.size > maxSize) {
+      toast({
+        title: 'File Too Large',
+        description: 'Image must be smaller than 2MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
