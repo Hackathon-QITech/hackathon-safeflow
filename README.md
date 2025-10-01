@@ -37,6 +37,7 @@ Acesse o protótipo em: [https://hackathon-safeflow.lovable.app/](https://hackat
 
 ## Estrutura do Projeto
 
+```
 hackathon-safeflow/
 ├── src/                    # Frontend (React/Tailwind)
 │   ├── components/         # Componentes (Auth, Dashboard, Transfer, etc.)
@@ -47,3 +48,4 @@ hackathon-safeflow/
 ├── .env                    # Variáveis de ambiente (não comitado)
 ├── vite.config.js          # Configuração do Vite
 └── package.json            # Dependências e scripts
+```
